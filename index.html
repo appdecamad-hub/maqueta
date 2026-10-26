@@ -473,7 +473,9 @@ html[data-view="desk"] .search-row > .search-wrap { flex: 1 1 auto; }
 .info-box { display: flex; gap: 8px; align-items: flex-start; background: var(--info-pill); color: var(--info-fg); border-radius: 12px; padding: 10px 12px; font-size: 14px; font-weight: 600; line-height: 1.4; }
 .mock-hint { background: var(--purple-bg); color: var(--purple-fg); font-size: 13px; font-weight: 600; padding: 8px 10px; border-radius: 10px; line-height: 1.4; }
 .missing-box { background: var(--warn-box); color: var(--warn-fg); border-radius: 12px; padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; max-height: 236px; overflow-y: auto; }
+.missing-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -6px -8px -4px 0; }
 .missing-title { display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; }
+.missing-x { background: none; color: var(--warn-fg); }
 .missing-list { display: flex; flex-wrap: wrap; gap: 6px; }
 .missing-btn { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; border: 1.5px solid var(--warn-border); background: var(--surface); color: var(--warn-fg); border-radius: 999px; padding: 4px 8px 4px 14px; font-size: 14px; font-weight: 600; text-align: left; line-height: 1.2; }
 .foot-note { font-size: 14px; color: var(--warn-fg); font-weight: 500; }
@@ -531,6 +533,8 @@ html[data-view="desk"] .sheet > .grabber { display: none; }
 .pr-check { flex: none; color: var(--ok-fg); display: flex; }
 .pr-plates { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .pick-row > .ico, .person-row > .ico, .truck-row > .ico { color: var(--muted); }
+.truck-row.is-off { background: var(--surface-2); color: var(--muted); }
+.gone-group > .rows-card { margin-top: 8px; }
 .person-row.gone { display: grid; grid-template-columns: auto minmax(0, 1fr); cursor: default; }
 .person-row.gone .btn { grid-column: 2; justify-self: start; }
 .goods-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 52px; padding: 4px 6px 4px 14px; border-top: 1px solid var(--divider); }
@@ -821,7 +825,7 @@ html[data-view="desk"] .lg-act { grid-area: act; }
     <h1>Maqueta de tu app de cartas de porte</h1>
     <p>Esta maqueta se prueba tocándola, pero este visor no la deja funcionar.</p>
     <p class="nojs-how">En Android: toca los tres puntos (⋮) y elige «Abrir con» → Chrome.</p>
-    <p class="nojs-how">En iPhone: el visor de WhatsApp no la deja funcionar. Pídele a quien te la mandó el enlace para abrirla en Safari.</p>
+    <p class="nojs-how">En iPhone: el visor de WhatsApp no la deja funcionar. Pídeme el enlace para abrirla en Safari.</p>
   </div>
 </div>
 <div id="root" hidden></div>
@@ -1432,7 +1436,7 @@ function initialState() {
     v: 1, uid: 0, role: 'driver', coverage: true, firstRunSeen: false, forceDesk: false, task: null, taskCase: null,
     stack: [{ k: 'k0', screen: 'welcome', p: {}, f: {} }], sheets: [], mock: null, mockConfirm: false,
     data: seedData(), drafts: {}, pwIndex: 0,
-    ui: { lettersQuery: '', lettersDay: null, teamTab: 'drivers', clientsTab: 'clients', clientsQuery: '', sitesQuery: '', newGood: '', newGoodError: '', extras: { welcome: false, guide: false } },
+    ui: { lettersQuery: '', lettersDay: null, teamTab: 'drivers', clientsTab: 'clients', clientsQuery: '', sitesQuery: '', newGood: '', newGoodError: '', extras: { welcome: false, guide: false }, goneOpen: false },
   };
 }
 
@@ -2175,10 +2179,20 @@ function deskBar() {
     '</div></div></div>';
 }
 
+/* The box «Para sacar el QR falta» (and its marked rows) goes away when he leaves the letter: coming back to it,
+   the letter is as he left it, without the box (it comes back with «Guardar y sacar el QR»). */
+function hideMissingBoxes() {
+  Object.keys(S.drafts).forEach((k) => { if (S.drafts[k]) S.drafts[k].showMissing = false; });
+}
 ACTIONS.tab = (d) => {
   clearBusy();
   dropSheets();
+  hideMissingBoxes();
   resetTo(d.arg);
+};
+ACTIONS.hideMissing = () => {
+  currentForm().showMissing = false;
+  pendingFocus = { selector: '[data-action="publish"]' };
 };
 ACTIONS.back = () => { clearBusy(); goBack(); };
 ACTIONS.openSheet = (d) => { openSheet(d.arg, {}, {}); };
@@ -2457,7 +2471,8 @@ function renderNewLetter(e) {
     '<div class="notes-wrap">' + notes + '</div>';
 
   const showBox = f.showMissing && miss.length;
-  const box = showBox ? '<div class="missing-box" id="nl-missing"><p class="missing-title">' + icon('warn', 18) + 'Para sacar el QR falta:</p><div class="missing-list">' +
+  const box = showBox ? '<div class="missing-box" id="nl-missing"><div class="missing-head"><p class="missing-title">' + icon('warn', 18) + 'Para sacar el QR falta:</p>' +
+    '<button type="button" class="icon-btn missing-x" data-action="hideMissing" aria-label="Cerrar el aviso">' + icon('x', 20, 2.2) + '</button></div><div class="missing-list">' +
     miss.map((m) => '<button type="button" class="missing-btn" data-action="missingGo" data-arg="' + m.k + '">' + esc(m.t) + icon('chevron', 16) + '</button>').join('') + '</div></div>' : '';
   const bz = isBusy(e.k);
   const foot = box + btn(bz ? busy.label : 'Guardar y sacar el QR', 'publish', { kind: 'primary', icon: 'qr', iconSize: 22, disabled: bz, busy: bz });
@@ -3242,7 +3257,7 @@ SCREENS.install = {
       '<div class="seg seg-2" role="group" aria-label="Tu móvil">' +
       ['iphone', 'android'].map((k) => '<button type="button" class="seg-btn' + (plat === k ? ' is-on' : '') + '" aria-pressed="' + (plat === k ? 'true' : 'false') + '" data-action="installPlatform" data-arg="' + k + '">' + (k === 'iphone' ? 'iPhone' : 'Android') + '</button>').join('') + '</div>' +
       '<ol class="steps">' + steps.map((s) => '<li>' + esc(s) + '</li>').join('') + '</ol>' +
-      '<p class="help">El primer día te la deja puesta quien te lleva la app.</p>' +
+      '<p class="help">El primer día te la dejo puesta yo.</p>' +
       hint('Maqueta: no hace falta que la instales de verdad. Toca «Ya la he puesto».') +
       (plat === 'android' ? btn('Entrar sin instalar', 'goLogin', { kind: 'text' }) : '');
     const foot = btn('Ya la he puesto', 'goLogin', { kind: 'primary', icon: 'check', iconSize: 22 });
@@ -3263,7 +3278,7 @@ SCREENS.login = {
     const blocked = !!f.blocked;
     let hintTxt = 'Maqueta: ya están puestos los de ' + esc(withStop(p.name)) + ' Toca «Entrar».';
     if (reset) hintTxt = 'Maqueta: el jefe le ha puesto una contraseña nueva y ya está escrita. Toca «Entrar».';
-    if (blocked) hintTxt = 'Maqueta: para que vuelva a entrar, prueba como jefe: Equipo → «Volver a darle de alta».';
+    if (blocked) hintTxt = 'Maqueta: para que vuelva a entrar, prueba como jefe: Equipo → «Ya no trabajan aquí» → «Volver a darle de alta».';
     const header = '<header class="hdr-dark hdr-login"><div class="login-brand"><span class="doc-logo logo-dark">[tu logo]</span><span class="hdr-company">' + esc(S.data.company.name) + '</span><h1 class="hdr-title" tabindex="-1">Cartas de porte</h1></div></header>';
     const show = !!f.show;
     const body = '<div class="card card-pad login-card">' +
@@ -3307,6 +3322,7 @@ SHEETS.menu = {
 };
 ACTIONS.menuGo = (d) => {
   dropSheets();
+  hideMissingBoxes();
   if (d.arg === 'new-letter') resetTo('new-letter');
   else if (d.arg === 'company') push('company', {}, companyForm());
   else push(d.arg);
@@ -3779,7 +3795,7 @@ SCREENS.alerts = {
       }
       body += '<article class="alert-card" data-alert="' + a.type + '"><h2 class="alert-title">' + icon('warn', 18) + '<span>' + title + '</span></h2><p class="alert-text">' + text + '</p><div class="alert-btns">' + btns + '</div></article>';
     });
-    body += '<p class="help">Lo técnico (fallos al sacar el QR, copias en conflicto…) no sale aquí: en la app de verdad le llega al desarrollador por correo.</p>';
+    body += '<p class="help">Lo técnico (fallos al sacar el QR, copias en conflicto…) no sale aquí: en la app de verdad me llega a mí por correo y lo arreglo yo.</p>';
     return shell(e, 'alerts', { header, body, deskW: 'mid' });
   },
 };
@@ -4128,9 +4144,12 @@ SCREENS.team = {
       }).join('') + '</div>';
       const gone = S.data.people.filter((p) => !p.active);
       if (gone.length) {
-        body += '<h2 class="group-h">YA NO TRABAJAN AQUÍ</h2><div class="card rows-card">' + gone.map((p) =>
+        /* folded, like «Más cosas para probar»: whether it is open lives in the state (the morph would close it) */
+        body += '<details class="extras gone-group" data-key="gone"' + (S.ui.goneOpen ? ' open' : '') + '>' +
+          '<summary class="extras-sum" data-action="toggleGone"><span class="extras-t">Ya no trabajan aquí (' + gone.length + ')</span>' + icon('chevron', 20) + '</summary>' +
+          '<div class="card rows-card">' + gone.map((p) =>
           '<div class="person-row gone">' + avatar(p, 'avatar-gone') + '<span class="pr-txt"><span class="pr-main">' + esc(p.name) + '</span><span class="pr-sub">Desde el ' + fmtDayKey(p.since) + ' · sus cartas siguen guardadas</span></span>' +
-          btn('Volver a darle de alta', 'reactivate', { kind: 'secondary', cls: 'btn-sm', arg: p.id, aria: 'Volver a darle de alta a ' + p.name }) + '</div>').join('') + '</div>';
+          btn('Volver a darle de alta', 'reactivate', { kind: 'secondary', cls: 'btn-sm', arg: p.id, aria: 'Volver a darle de alta a ' + p.name }) + '</div>').join('') + '</div></details>';
       }
     } else {
       body += btn('Nuevo camión', 'newTruck', { kind: 'accent', icon: 'plus', cls: 'btn-block' });
@@ -4144,9 +4163,10 @@ SCREENS.team = {
           sub = 'Cargado sin báscula: ' + (v.capacity ? fmtKg(v.capacity) : 'sin cifra') + ' · ' +
             (ps === 'valid' ? 'Permiso M-30: n.º ' + esc(v.permit.number) : ps === 'expired' ? 'Permiso M-30 caducado' : 'Sin permiso M-30');
         }
-        return '<button type="button" class="truck-row" data-action="openTruck" data-arg="' + v.id + '" aria-label="' + esc(v.plate + ' · ' + (v.what || kindName)) + '">' +
+        /* in the workshop: grey, like in «Conductor y camión», but it still opens (to take it out of the workshop) */
+        return '<button type="button" class="truck-row' + (v.workshop ? ' is-off' : '') + '" data-action="openTruck" data-arg="' + v.id + '" aria-label="' + esc(v.plate + ' · ' + (v.what || kindName) + (v.workshop ? ' · En el taller' : '')) + '">' +
           plate(v.plate, { off: v.workshop }) + '<span class="pr-txt"><span class="pr-main">' + esc((v.what || kindName) + ' · ' + kindName) + '</span>' + (sub ? '<span class="pr-sub">' + sub + '</span>' : '') +
-          (v.workshop ? '<span class="pr-tags">' + pill('En el taller', 'warn') + '</span>' : '') + '</span>' + icon('chevron', 18) + '</button>';
+          (v.workshop ? '<span class="pr-tags">' + pill('En el taller', 'neutral') + '</span>' : '') + '</span>' + icon('chevron', 18) + '</button>';
       };
       body += '<div class="card rows-card">' + trucks.map(row).join('') + '</div>';
       body += '<h2 class="group-h">SEMIRREMOLQUES</h2><div class="card rows-card">' + trailers.map(row).join('') + '</div>';
@@ -4155,6 +4175,7 @@ SCREENS.team = {
   },
 };
 ACTIONS.teamTab = (d) => { S.ui.teamTab = d.arg; };
+ACTIONS.toggleGone = () => { S.ui.goneOpen = !S.ui.goneOpen; };
 ACTIONS.newDriver = () => { push('driver-new', {}, { name: '', error: '' }); pendingFocus = { selector: '#nd-name' }; };
 ACTIONS.openDriver = (d) => { push('driver', { id: d.arg }); };
 ACTIONS.newTruck = () => { push('truck', { id: null }, truckForm(null)); };
@@ -4531,7 +4552,7 @@ SCREENS.company = {
       field({ id: 'cy-phone', label: 'Teléfono', bind: 'e:phone', value: f.phone, inputmode: 'tel' }) +
       field({ id: 'cy-email', label: 'Correo', bind: 'e:email', value: f.email, inputmode: 'email', autocapitalize: 'off' }) + '</div>' +
       '<div class="card card-pad logo-row"><span class="doc-logo logo-app">[tu logo]</span>' + btn('Cambiar el logo', 'changeLogo', { kind: 'secondary', cls: 'btn-sm' }) + '</div>' +
-      '<p class="help">Salen en todas las cartas. Los plazos de la ley los cambia quien te lleva la app, si tú o tu gestoría lo pedís.</p>';
+      '<p class="help">Salen en todas las cartas. Los plazos de la ley los cambio yo, si tú o tu gestoría lo pedís.</p>';
     const foot = btn('Guardar datos', 'saveCompany', { kind: 'primary', icon: 'check' });
     return shell(e, 'company', { header, body, foot, deskW: 'narrow' });
   },
@@ -4628,8 +4649,8 @@ const TASK_NOTES = {
   7: { none: 'Ya no llevas ninguna carta sin entregar. Haz una aquí o toca «Empezar de nuevo» en Opciones.' },
 };
 const GO_NOTE = 'Como jefe, en el móvil. Son 5 pasos cortos y en cada uno te dice qué tocar.';
-const GUIDE_END = 'Cuando acabes, cuéntale a quien te la mandó, con un audio, qué cambiarías. Di el nombre de la pantalla: sale arriba.';
-const DONE_TEXT = 'Gracias por probarla. Ahora cuéntale a quien te la mandó, con un audio, qué cambiarías. Di el nombre de la pantalla: sale arriba, en la barra morada.';
+const GUIDE_END = 'Cuando acabes, mándame un audio con lo que cambiarías. Di el nombre de la pantalla: sale arriba.';
+const DONE_TEXT = 'Gracias por probarla. Ahora mándame un audio con lo que cambiarías. Di el nombre de la pantalla: sale arriba, en la barra morada.';
 
 function taskOf(n) { return TASKS.find((x) => x.n === n) || null; }
 function currentTask() { return S.task ? taskOf(S.task) : null; }
